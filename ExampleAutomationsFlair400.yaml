@@ -1,0 +1,324 @@
+# Automation for steering the Bypass. 
+#
+# Every 15 minutes this automation compares the temperature in the 
+# living room with the temperature outside. 
+#
+# When it is warm in the living room (> 25 degrees C): 
+# - the bypass opens when the temperature in the living room is  
+# higher then outside ("cooling")
+# - the bypass closes when the temperature in the living rom is 
+# lower than outside ("keep it cool")
+#
+# When it is below 25 degrees in the living room: 
+# - the bypass closes when the temperature in the living room is 
+# higher than outside ("keep it warm")
+# - the bypass opens when the temperature in the living room is 
+# lower than outside ("warming").
+#
+# Installing this automation: 
+# Create a file HRU.yaml in your config directory. The file 
+# integration makes easy to do that
+# (see https://www.home-assistant.io/integrations/file/)
+# - copy this automation to this file HRU.yaml
+# - change 'sensor.woonkamer_temperature' to the name of a 
+# temperature sensor in your house
+# - add in your config.yaml the line:
+# automation hru: !include hru.yaml
+# - restart homeassistant under development tools after checking the 
+# configuration for errors.
+# you can migrate this automation to your automation.yaml by 
+# choosing settings / automations in the Home Assistant menu and 
+# selection the automation 'HRU Bypass control'
+
+
+- id: '1723802141330'
+  alias: HRU Bypass control
+  description: ''
+  trigger:
+  - platform: time_pattern
+    minutes: 1
+  - platform: time_pattern
+    minutes: 15
+  - platform: time_pattern
+    minutes: 30
+  - platform: time_pattern
+    minutes: '45'
+  condition: []
+  action:
+  - alias: Koelte vasthouden
+    choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.woonkamer_temperature
+        above: 25.5
+      - condition: template
+        value_template: '{{states(''sensor.woonkamer_temperature'') | float -0.5 <  states(''sensor.hru_temperature_from_outside'')
+          | float }}'
+      sequence:
+      - action: select.select_option
+        target:
+          entity_id: select.hru_bypass_mode_i
+        data:
+          option: Bypass closed
+  - alias: Koelen
+    choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.woonkamer_temperature
+        above: 25.5
+      - condition: numeric_state
+        entity_id: sensor.woonkamer_temperature
+        above: sensor.hru_temperature_from_outside
+      sequence:
+      - action: select.select_option
+        target:
+          entity_id: select.hru_bypass_mode_i
+        data:
+          option: Bypass open
+  - alias: Verwarmen
+    choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.woonkamer_temperature
+        below: 25.1
+      - condition: template
+        value_template: '{{states(''sensor.woonkamer_temperature'') | float <  states(''sensor.hru_temperature_from_outside'')
+          | float }}'
+      sequence:
+      - action: select.select_option
+        target:
+          entity_id: select.hru_bypass_mode_i
+        data:
+          option: Bypass open
+  - alias: Warmte vasthouden
+    choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.woonkamer_temperature
+        below: 25.1
+      - condition: template
+        value_template: '{{states(''sensor.woonkamer_temperature'') | float  >  states(''sensor.hru_temperature_from_outside'')
+          | float }}'
+      sequence:
+      - action: select.select_option
+        target:
+          entity_id: select.hru_bypass_mode_i
+        data:
+          option: Bypass closed
+    default:
+  mode: single
+
+
+# Automation for control of bypass boost.
+#
+# The bypass boost is set when the bypass is open (see first 
+# automation) and the difference between the temperature of the 
+# living room and the temperature outside is 5 degrees C or more. 
+#
+# Installing: see above. You can migrate this automation to your 
+# automation.yaml by choosing settings / automations in the 
+# Home Assistant menu and selection the automation 'HRU Bypass 
+# boost'
+
+- id: '1724163990056'
+  alias: HRU Bypass boost
+  description: ''
+  trigger:
+  - platform: time_pattern
+    minutes: 3
+  - platform: time_pattern
+    minutes: 33
+  condition: []
+  action:
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.woonkamer_temperature
+        below: 25.1
+      - condition: template
+        value_template: '{{states(''sensor.woonkamer_temperature'') | float <  states(''sensor.hru_temperature_from_outside'')
+          | float }}'
+      - condition: template
+        value_template: '{{((states(''sensor.woonkamer_temperature'') | float )-  ((states(''sensor.hru_temperature_from_outside'')
+          | float) )) | abs > 5 }}'
+      sequence:
+      - action: select.select_option
+        metadata: {}
+        data:
+          option: 'On'
+        target:
+          entity_id: select.hru_bypass_boost
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.woonkamer_temperature
+        above: 25.1
+      - condition: template
+        value_template: '{{states(''sensor.woonkamer_temperature'') | float >  states(''sensor.hru_temperature_from_outside'')
+          | float }}'
+      - condition: template
+        value_template: '{{((states(''sensor.woonkamer_temperature'') | float )-  ((states(''sensor.hru_temperature_from_outside'')
+          | float) )) | abs > 5 }}'
+      sequence:
+      - action: select.select_option
+        metadata: {}
+        data:
+          option: 'On'
+        target:
+          entity_id: select.hru_bypass_boost
+    default:
+    - action: select.select_option
+      metadata: {}
+      data:
+        option: 'Off'
+      target:
+        entity_id: select.hru_bypass_boost
+  mode: single
+
+# Automation for setting the airflow of the HRU
+#
+# This in combination with the Helper - select as defined in the
+# file Configurationaddition.yaml
+#
+# Installing: see above. You can migrate this automation to your 
+# automation.yaml by choosing 
+# settings / automations in the Home Assistant menu and selection 
+# the automation 'HRU Airflow manually or automatic'
+
+- id: '1724593618407'
+  alias: HRU Airflow manual-automatic
+  description: Set airflow manually or automatic
+  trigger:
+  - platform: state
+    entity_id:
+    - input_select.hru
+  condition: []
+  action:
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ not states(''input_select.hru'') == ''Automatic'' }}'
+      sequence:
+      - action: select.select_option
+        target:
+          entity_id: select.hru_request_change_in_switch_position
+        data:
+          option: '{{ states(''input_select.hru'') }}'
+    default:
+  mode: single
+
+
+
+# Automation for resetting the helper switch.
+#
+# After 10 hours of manual setting the helper switch is reset to 
+# 'Automatic'.
+#
+# Installing: see above. You can migrate this automation to your 
+# automation.yaml by choosing settings / automations in the 
+# Home Assistant menu and selection the automation 'HRU set 
+# automated again'.
+
+
+- id: '1724601246780'
+  alias: HRU set automated again
+  description: 'Manual to automated setting '
+  trigger:
+  - platform: state
+    entity_id:
+    - input_select.hru
+    for:
+      hours: 10
+      minutes: 0
+      seconds: 0
+  condition: []
+  action:
+  - action: input_select.select_option
+    data:
+      option: Automatic
+    target:
+      entity_id: input_select.hru
+  mode: single
+
+
+
+# Automation for controlling the airflow  
+#
+# This automation checks each 15 minutes:
+# - is the HRU in high volume mode, (is manually chosen) shorter 
+# than 5 hours?
+# or 
+# - if the HRU in bypass bost mode (see automation below): 
+# leave it that way
+# else: the air set the volume in the standard state
+# that is: 
+#   - "normal" at night
+#   - "low" otherwise.
+#   - "Holiday" when nobody is home during several hours 
+# The last option requires an integration like NMAP tracker
+# (https://www.home-assistant.io/integrations/nmap_tracker/) 
+# This is a simpel integration that some time for short periods 
+# reports that nobody is at home because of glitches to recognise 
+# telephones. In practice this is not a problem when you accept a 
+# delay of several hours for "Holiday" settings. 
+#
+# Installing: see above. You can migrate this automation to your 
+# automation.yaml by choosing settings / automations in the
+# Home Assistant menu and selection the automation 'HRU Airflow 
+# daily'
+  
+- id: '1723805480862'
+  alias: HRU airflow daily
+  description: Daily airflow
+  trigger:
+  - platform: time_pattern
+    minutes: 1
+  - platform: time_pattern
+    minutes: 16
+  - platform: time_pattern
+    minutes: 31
+  - platform: time_pattern
+    minutes: 46
+  condition:
+  - condition: template
+    value_template: '{{ states(''input_select.hru'') == ''Automatic''  }}'
+  action:
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{utcnow() - states.zone.home.last_changed > timedelta(hours=2)}}'
+      - condition: template
+        value_template: '{{ states(''zone.home'' ) | float == 0.0 }}'
+      sequence:
+      - action: select.select_option
+        target:
+          entity_id: select.hru_request_change_in_switch_position
+        data:
+          option: Holiday
+  - choose:
+    - conditions:
+      - condition: time
+        after: 09:00:00
+        before: '22:00:00'
+        weekday:
+        - mon
+        - tue
+        - wed
+        - thu
+        - fri
+        - sat
+        - sun
+      sequence:
+      - action: select.select_option
+        target:
+          entity_id: select.hru_request_change_in_switch_position
+        data:
+          option: Low
+    default:
+      sequence:
+      - action: select.select_option
+        target:
+          entity_id: select.hru_request_change_in_switch_position
+        data:
+          option: Normal
+  mode: single

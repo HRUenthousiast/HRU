@@ -1,0 +1,524 @@
+esphome:
+  name: hru
+  friendly_name: Hru Brink
+
+esp8266:                 # see for supported  microcontrollers and boards: 
+  board: nodemcuv2       # https://esphome.io/#
+
+# Enable logging
+logger:                  # worked: VERY_VERBOSE logging and signal on the same pins
+  level: NONE           # options see https://esphome.io/components/logger.html
+  baud_rate: 0
+  #hardware_uart: UART0  # You can uncomment the coding for testing. 
+  #logs:                 # enabling UART0 logging requires loglevel VERBOSE
+  #  modbus: DEBUG
+  #  modbus_controller: DEBUG
+  #  number: DEBUG
+    
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "Your api key="
+
+ota:
+  - platform: esphome
+    password: "your ota key"
+
+wifi:                              
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password  
+  manual_ip:
+    static_ip: 192.168.2.3  # A stable Wifi connection requires a fixed 
+    gateway: 192.168.2.254  # IP number, also on the router
+    subnet: 255.255.255.0
+
+captive_portal:
+
+#web_server:             # A webserver as an extra was too much for an   
+#  port: 80              # ESP8266 in this configuration. 
+                         # A ESP32 has more power and will do I suppose.
+
+uart:                    # No flow_control_pin necessary because
+  tx_pin: TX             # UART TTL to RS485 has automatic flow control 
+  rx_pin: RX
+  data_bits: 8           # Same value as for the Flair 400, see
+  stop_bits: 1           # Installation Manual Brink Flair 400.
+  parity: even           # THese values are the default for 
+  baud_rate: 19200       # Brink Flair 400.
+
+modbus:
+  send_wait_time: 1000ms
+
+modbus_controller:
+  - id: brink_h
+    address: 20         # Addres: same value as Flair 400, see 
+    update_interval: 5s # Installation Manual Brink Flair 400.
+
+#  SENSOR DEFINITIONS FOR BRINK FLAIR's READ REGISTERS WITH NUMERIC CONTENT  ####### 
+# see: https://esphome.io/components/sensor/modbus_controller.html
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_supply_pressure
+    name: "Supply pressure"
+    register_type: "read"
+    address: 4023
+    unit_of_measurement: "Pascal"
+    value_type: S_WORD   
+    #filters:          # The Installation Regulation requires dividing by 10 for     
+    #- multiply: 0.1   # this register but that was not necessary.
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_exhaust_pressure
+    name: "Exhaust pressure"
+    register_type: "read"
+    address: 4024
+    unit_of_measurement: "Pascal"
+    value_type: S_WORD   
+    #filters:          # The Installation Regulation requires dividing by 10 for 
+    #- multiply: 0.1   # this register but that was not necessary.
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_current_value_of_supply_air
+    name: "Current value of supply air"
+    register_type: "read"
+    address: 4032 
+    unit_of_measurement: "m3/h"
+    value_type: S_WORD   
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_current_value_flow_exhaust_air
+    name: "Current value flow exhaust air"
+    register_type: "read"
+    address: 4042 
+    unit_of_measurement: "m3/h"
+    value_type: S_WORD   
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_temp_sensor_4081
+    name: "Temperature from outside"
+    register_type: "read"
+    address: 4081
+    unit_of_measurement: "°C"
+    value_type: S_WORD   
+    accuracy_decimals: 1
+    filters:
+    - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_temperature_sensor_supply_fan
+    name: "Temperature sensor supply fan"
+    register_type: "read"
+    address: 4036
+    unit_of_measurement: "°C"
+    value_type: S_WORD   
+    accuracy_decimals: 1
+    filters:
+    - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_frost_heater_power
+    name: "Frost heater power"
+    register_type: "read"
+    address: 4071
+    unit_of_measurement: "%"
+    value_type: S_WORD   
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_frost_fan_reduction
+    name: "Frost fan reduction"
+    register_type: "read"
+    address: 4072
+    unit_of_measurement: "%"
+    value_type: S_WORD   
+    filters:
+    - lambda: return 100 - x;
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_current_filter_days
+    name: "Current filter days"
+    register_type: "read"
+    address: 4115
+    unit_of_measurement: "days"
+    value_type: S_WORD   
+    filters:
+    - multiply: 0.041  # the register contains hours, I needed days.
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_active_incident
+    name: "Active incident"
+    register_type: "read"
+    address: 4801
+    value_type: S_WORD
+
+# TEXT-SENSOR DEFINITIONS FOR BRINK FLAIR's READ REGISTERS WITH NUMBERS -> TEXT  
+# see: https://esphome.io/components/text_sensor/modbus_controller.html
+text_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_hra_active_function
+    name: "HRA active function"
+    register_type: "read"
+    address: 4020
+    raw_encode: HEXBYTES
+    filters:
+    - lambda: |-
+        uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+        switch (value) {
+          case 0: return std::string("Standby"); 
+          case 1: return std::string("Bootloader");
+          case 2: return std::string("Reserved");
+          case 3: return std::string("Reserved");
+          case 4: return std::string("Manual"); 
+          case 5: return std::string("Holiday");
+          case 6: return std::string("Night Ventilation"); 
+          case 7: return std::string("Party");
+          case 8: return std::string("Bypass Boost");
+          case 9: return std::string("Normal Boost");
+          case 10: return std::string("Auto CO2");
+          case 11: return std::string("Auto eBus");
+          case 12: return std::string("Auto Modbus");
+          case 13: return std::string("Auto LAN WLAN Portal");
+          case 14: return std::string("Auto LAN WLAN Local");
+          default: return std::string("Unknown");
+        } 
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_fan_inlet_status
+    name: "Fan inlet status"
+    register_type: "read"
+    address: 4030
+    raw_encode: HEXBYTES
+    filters:
+    - lambda: |-
+        uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+        switch (value) {
+          case 2: return std::string("No communication");
+          case 3: return std::string("Idle");
+          case 4: return std::string("Running");
+          case 5: return std::string("Blocked");
+          case 6: return std::string("Error");
+          default: return std::string("Unknown");
+        } 
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_fan_exhaust_status
+    name: "Fan exhaust status"
+    register_type: "read"
+    address: 4040
+    raw_encode: HEXBYTES
+    filters:
+    - lambda: |-
+        uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+        switch (value) {
+          case 2: return std::string("No communication");
+          case 3: return std::string("Idle");
+          case 4: return std::string("Running");
+          case 5: return std::string("Blocked");
+          case 6: return std::string("Error");
+          default: return std::string("Unknown");
+        }       
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_bypass_mode
+    name: "Bypass mode"
+    register_type: "read"
+    address: 4050
+    raw_encode: HEXBYTES
+    filters:
+    - lambda: |-
+        uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+        switch (value) {
+          case 0: return std::string("Initialize");
+          case 1: return std::string("Opening");
+          case 2: return std::string("Closing");
+          case 3: return std::string("Open");
+          case 4: return std::string("Closed");
+          default: return std::string("Unknown");
+        } 
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_frost_status
+    name: "Frost status"
+    register_type: "read"
+    address: 4070
+    raw_encode: HEXBYTES
+    filters:
+    - lambda: |-
+        uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+        switch (value) {
+          case 0: return std::string("Noninitialized");
+          case 1: return std::string("Powerup");
+          case 2: return std::string("Nofrost");
+          case 3: return std::string("Noforst delay");
+          case 4: return std::string("FrostControl start delay");
+          case 5: return std::string("Wait for icing");
+          case 6: return std::string("Ice detected delay");
+          case 7: return std::string("Heating");
+          case 8: return std::string("Wait for freen heater");
+          case 9: return std::string("Fancontrol start delay");
+          case 10: return std::string("Fancontrol wait delay");
+          case 11: return std::string("Fancontrol");
+          case 12: return std::string("Fan off delay");
+          case 13: return std::string("Fan off");
+          case 14: return std::string("Fan restarting");
+          case 15: return std::string("Error");
+          case 16: return std::string("Test mode");
+          default: return std::string("Unknow");
+        }     
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_filter_status
+    name: "Filter status"
+    register_type: "read"
+    address: 4100
+    raw_encode: HEXBYTES
+    filters:
+    - lambda: |-
+        uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+        switch (value) {
+          case 0 : return std::string("Not dirty");
+          case 1 : return std::string("Dirty");
+          default: return std::string("Unknown");
+        }
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_system_error_status
+    name: "System error status"
+    register_type: "read"
+    address: 4800 
+    raw_encode: HEXBYTES
+    filters:
+    - lambda: |-
+        uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+        switch (value) {
+          case 0 : return std::string("No Error");
+          case 1 : return std::string("Warning");
+          default: return std::string("Blocking error");
+        }
+
+# NUMBER DEFINITIONS FOR BRINK FLAIR's HOLDING REGISTERS  ################## 
+# see: https://esphome.io/components/number/modbus_controller.html
+number:
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_flow_preset_0
+    name: "Flow preset 0"
+    register_type: holding
+    address: 6000
+    unit_of_measurement: "m3/h"
+    value_type: S_WORD      
+    min_value: 0
+    max_value: 50
+    mode: slider
+    icon: mdi:fan-auto
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_flow_preset_1
+    name: "Flow preset 1"
+    register_type: holding
+    address: 6001
+    unit_of_measurement: "m3/h"
+    value_type: S_WORD      
+    min_value: 50
+    max_value: 400
+    mode: slider
+    icon: mdi:fan-speed-1
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_flow_preset_2
+    name: "Flow preset 2"
+    register_type: holding
+    address: 6002
+    unit_of_measurement: "m3/h"
+    value_type: S_WORD      
+    min_value: 50
+    max_value: 400
+    mode: slider
+    icon: mdi:fan-speed-2
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_flow_preset_3
+    name: "Flow preset 3"
+    register_type: holding
+    address: 6003
+    unit_of_measurement: "m3/h"
+    value_type: S_WORD   
+    min_value: 50
+    max_value: 400
+    mode: slider
+    icon: mdi:fan-speed-3
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_imbalance_value
+    name: "Imbalance percentage"
+    register_type: holding
+    address: 6034
+    unit_of_measurement: "%"
+    value_type: S_WORD   
+    min_value: 0
+    max_value: 20
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_bypass_temp_from_dwelling
+    name: "Bypass temp from home"
+    register_type: holding
+    address: 6101
+    unit_of_measurement: "°C"
+    value_type: S_WORD   
+    multiply: 10
+    min_value: 15
+    max_value: 35
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_bypass_temp_from_outside
+    name: "Bypass temp from outside"
+    register_type: holding
+    address: 6102
+    unit_of_measurement: "°C"
+    value_type: S_WORD   
+    multiply: 10
+    min_value: 7
+    max_value: 15
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_bypass_temperature_hysteresis
+    name: "Bypass temperature hysteresis"
+    register_type: holding
+    address: 6103
+    unit_of_measurement: "°C"
+    value_type: S_WORD   
+    multiply: 10
+    min_value: 0
+    max_value: 5
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_freezing_control_temperature
+    name: "Freezing control temperature"
+    register_type: holding
+    address: 6110
+    unit_of_measurement: "°C"
+    value_type: S_WORD   
+    multiply: 10
+    min_value: 0
+    max_value: 3
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_frost_control_minimum_inlet_temperature
+    name: "Frost control minimum inlet temperature"
+    register_type: holding
+    address: 6111
+    unit_of_measurement: "°C"
+    value_type: S_WORD   
+    multiply: 10
+    min_value: 7
+    max_value: 22
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_days_before_filter_warning
+    name: "Days before filter warning"
+    register_type: holding
+    address: 6120
+    unit_of_measurement: "days"
+    value_type: S_WORD   
+    min_value: 90
+    max_value: 180
+             
+# SELECT DEFINITIONS HOLDING AND REMOTE CONTROL REGISTERS WITH DISCRETE CHOICES  
+# see: https://esphome.io/components/select/modbus_controller.html
+select:
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_imbalance_allowed
+    name: "Imbalance allowed"
+    address: 6033
+    value_type: U_WORD
+    optionsmap:
+      "Imbalance not permitted": 0
+      "Imbalance permitted": 1
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_bypass_mode_i
+    name: "Bypass mode_i"
+    address: 6100
+    value_type: U_WORD
+    optionsmap:
+      "Automatic function": 0
+      "Bypass closed": 1
+      "Bypass open": 2
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_bypass_boost
+    name: "Bypass boost"
+    address: 6104
+    value_type: U_WORD
+    optionsmap:
+      "Off": 0
+      "On": 1
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_bypass_boost_switch_position
+    name: "Bypass boost switch position"
+    address: 6105
+    value_type: U_WORD
+    optionsmap:
+      "Holiday": 0
+      "Low": 1
+      "Normal": 2
+      "High": 3
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_signal_output
+    name: "Signal output"
+    address: 6170
+    value_type: S_WORD   
+    optionsmap:
+      "Off": 0
+      "Filter warning": 1
+      "Error status": 2
+      "Filter warning and error status": 3
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_modbus_control_switch_on
+    name: "Modbus control"
+    address: 8000
+    value_type: U_WORD
+    optionsmap:
+      "Modbus control switched off": 0
+      "Modbus control": 1
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_request_change_in_switch_position
+    name: "Request change in switch position"
+    address: 8001
+    value_type: U_WORD
+    optionsmap:
+      "Holiday": 0
+      "Low": 1
+      "Normal": 2
+      "High": 3
+  - platform: modbus_controller
+    modbus_controller_id: brink_h
+    id: hru_request_standby
+    name: "Request standby"
+    address: 8003
+    value_type: U_WORD
+    optionsmap:
+      "No action": 0
+      "Set in standby": 1
+      "Set in normal mode": 2
+
+# ESPhome has no button for modbus (aug 2024)
+# I used the solution of https://github.com/esphome/feature-requests/issues/1733
+button:
+  - platform: template
+    id: hru_filter_reset
+    name: "Filter reset"
+    entity_category: diagnostic
+    icon: "mdi:air-filter"
+    on_press:
+      then:
+        - lambda: |-
+            modbus_controller::ModbusController *controller = id(brink_h);
+            modbus_controller::ModbusCommandItem resetfilter = modbus_controller::ModbusCommandItem::create_write_single_command(controller, 8010, 1);
+            controller->queue_command(resetfilter);

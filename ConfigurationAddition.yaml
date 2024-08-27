@@ -1,0 +1,11 @@
+input_select:
+  hru:
+    name: HRU manual-automatic
+    options:
+      - Automatic
+      - Holiday
+      - Low
+      - Normal
+      - High
+    initial: Automatic
+    icon: mdi:fan

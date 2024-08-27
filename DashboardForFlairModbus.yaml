@@ -1,0 +1,91 @@
+views:
+  - theme: Backend-selected
+    title: Brink
+    path: brink
+    icon: mdi:fan
+    badges: []
+    cards:
+      - type: entities
+        show_header_toggle: false
+        title: Volume
+        entities:
+          - entity: input_select.hru
+            name: HRUflow manual-automatic
+          - entity: select.hru_request_change_in_switch_position
+            name: Flow rate
+          - entity: sensor.hru_current_value_of_supply_air
+            name: Current intake air volume
+          - entity: sensor.hru_current_value_flow_exhaust_air
+            name: Current exhaust air volume
+          - entity: sensor.hru_supply_pressure
+            name: Supply pressure
+          - entity: sensor.hru_exhaust_pressure
+            name: Exhaust pressure
+          - entity: number.hru_flow_preset_0
+            name: Flow - Holiday
+          - entity: number.hru_flow_preset_1
+            name: Flow - Low
+          - entity: number.hru_flow_preset_2
+            name: Flow - Normal
+          - entity: number.hru_flow_preset_3
+            name: Flow - High
+          - entity: select.hru_imbalance_allowed
+            name: Imbalance allowed
+          - entity: number.hru_imbalance_percentage
+            name: Imbalance percentage allowed
+      - type: entities
+        show_header_toggle: false
+        title: Bypass
+        entities:
+          - entity: sensor.hru_bypass_mode
+            name: Bypass mode
+          - entity: sensor.hru_temperature_from_outside
+            name: Temperatuur from outside
+          - entity: sensor.hru_temperature_sensor_supply_fan
+            name: Temperatuur to dwelling
+          - entity: select.hru_bypass_mode_i
+            name: Bypass mode
+          - entity: number.hru_bypass_temp_from_outside
+            name: Bypass temp from outside
+          - entity: number.hru_bypass_temp_from_home
+            name: Bypass temp from home
+          - entity: select.hru_bypass_boost
+            name: Bypass boost allowed
+          - entity: select.hru_bypass_boost_switch_position
+            name: Bypass boost default
+          - entity: number.hru_bypass_temperature_hysteresis
+            name: Bypass temperature hysteresis
+      - type: entities
+        show_header_toggle: false
+        title: Filter
+        entities:
+          - entity: sensor.hru_filter_status
+            name: Filter status
+          - entity: sensor.hru_current_filter_days
+            name: Current filter days
+          - entity: number.hru_days_before_filter_warning
+            name: Days before filter warning
+          - entity: button.hru_filter_reset
+            name: Filter reset
+      - type: entities
+        show_header_toggle: false
+        title: Control
+        entities:
+          - entity: sensor.hru_hra_active_function
+            name: HRA active function
+          - entity: sensor.hru_fan_inlet_status
+            name: Fan inlet status
+          - entity: sensor.hru_fan_exhaust_status
+            name: Fan exhaust status
+          - entity: select.hru_modbus_control
+            name: Modbus control for flow rate
+          - entity: sensor.hru_frost_status
+            name: Frost status
+          - entity: sensor.hru_frost_heater_power
+            name: Frost heater power
+          - entity: sensor.hru_frost_fan_reduction
+            name: Frost fan reduction
+          - entity: number.hru_frost_control_minimum_inlet_temperature
+            name: Freezing minimum inlet temperature
+          - entity: select.hru_request_standby
+            name: Standby switch
